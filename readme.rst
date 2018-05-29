@@ -22,11 +22,13 @@ This fork adds the following additional features to the original sacd-ripper:
 
 1. Padding-less DSF generation (-z):  Some players do not handle zero padding in DSF correctly resulting in a pop noise at a track transition.  With this option, instead of zero padding, the data fragment that doesn't perfectly fit in the 4096 Bytes/channel block size at the tail of a track is carried forward to the head of the next track so no zero padding is needed.  This is a loss-less process.  This option cannot be combined with the -t option because continuous processing of the entire album is needed for this option to work.
 
-2. Concurrent ISO+DSF/DSDIFF processing (-w):  With this option, both ISO (-I) and DSF (-s) or DSDIFF (-p) can be generated concurrently.  This is much more efficient than generating ISO and DSF/DSDIFF sequentially because ISO generation is a very light process in terms of CPU usage while DST decompression (mandatory for DSF, optional for DSDIFF) is not.  The run time of this process is expected to be by the slower of ISO and DSF/DSDIFF generation.
+2. Concurrent ISO+DSF/DSDIFF processing (-w):  With this option, both ISO (-I) and DSF (-s) or DSDIFF (-p) can be generated concurrently.  This is much more efficient than generating ISO and DSF/DSDIFF sequentially because ISO generation is a very light process in terms of CPU usage while DST decompression (mandatory for DSF, optional for DSDIFF) is not.  The run time of this process is expected to be the slower of ISO and DSF/DSDIFF generation.
 
 3. Output directory options (-o and -y):  These allow users to specify the output directory.  For the concurent processing mode, -o is for ISO and -y is for DSF/DSDIFF.  The directories specified by these options must exist.  Output directories default to the current directory.
 
 4. Enabled max compiler optimization in CMakeList.txt for gcc.  This provides about 3x speed boost to DST decoding (mandatory for DSF generation) for Linux and MacOS.
+
+5. More ID3v2 frames are added.  TSRC (ISRC), TPUB (Publisher), TCOP (Copyright message), TCOM (Composer), and TPE2 frames have been added. TPE2 is used as album artist which is a common practice.  Also, the fix for ID3 size coding issue contributed by David Bryant has been merged.
 
 Development of this software is primarily done on Linux.  Functionality on Windows has been checked.
 
