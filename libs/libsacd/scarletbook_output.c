@@ -64,6 +64,15 @@ static sacd_output_format_fn_t s_sacd_output_format_fns[] =
     iso_format_fn,
     NULL
 }; 
+ 
+struct scarletbook_process_frames_args{
+    scarletbook_handle_t *handle;
+    uint8_t *read_buffer;
+    int blocks_read;
+    int last_block;
+    frame_read_callback_t frame_read_callback;
+    void *userdata;
+};
 
 struct scarletbook_output_s
 {
@@ -78,6 +87,12 @@ struct scarletbook_output_s
 #endif
     atomic_t            stop_processing;            // indicates if the thread needs to stop or has stopped
     atomic_t            processing;
+
+#ifdef __lv2ppu__
+    sys_ppu_thread_t    sub_processing_thread_id;
+#else
+    pthread_t           sub_processing_thread_id;
+#endif
 
     // stats
     int                 stats_total_tracks;
@@ -122,7 +137,7 @@ static void destroy_ripping_queue(scarletbook_output_t *output)
     }
 }
 
-int scarletbook_output_enqueue_track(scarletbook_output_t *output, int area, int track, char *file_path, char *fmt, int dsd_encoded_export, int dsf_nopad)
+int scarletbook_output_enqueue_track(scarletbook_output_t *output, int area, int track, char *file_path, char *fmt, int dsd_encoded_export, int dsf_nopad, int sub) 
 {
     scarletbook_format_handler_t const * handler;
     scarletbook_output_format_t * output_format_ptr;
@@ -168,7 +183,16 @@ int scarletbook_output_enqueue_track(scarletbook_output_t *output, int area, int
 
         LOG(lm_main, LOG_NOTICE, ("Queuing: %s, area: %d, track %d, start_lsn: %d, length_lsn: %d, dst_encoded_import: %d, dsd_encoded_export: %d", file_path, area, track, output_format_ptr->start_lsn, output_format_ptr->length_lsn, output_format_ptr->dst_encoded_import, output_format_ptr->dsd_encoded_export));
 
-        list_add_tail(&output_format_ptr->siblings, &output->ripping_queue);
+        if(sub){
+            scarletbook_output_format_t *output_format_ptr_head;
+            output_format_ptr_head = list_entry(output->ripping_queue.next, scarletbook_output_format_t, siblings);
+            if(output_format_ptr_head)
+                list_add_tail(&output_format_ptr->siblings, &output_format_ptr_head->sub_queue);
+        }
+        else{
+            INIT_LIST_HEAD(&output_format_ptr->sub_queue);
+            list_add_tail(&output_format_ptr->siblings, &output->ripping_queue);
+        }
 
         return 0;
     }
@@ -194,7 +218,7 @@ int scarletbook_output_enqueue_raw_sectors(scarletbook_output_t *output, int sta
         LOG(lm_main, LOG_NOTICE, ("Queuing raw: %s, start_lsn: %d, length_lsn: %d", file_path, start_lsn, length_lsn));
 
         list_add_tail(&output_format_ptr->siblings, &output->ripping_queue);
-
+        INIT_LIST_HEAD(&output_format_ptr->sub_queue);
         return 0;
     }
     return -1;
@@ -313,6 +337,40 @@ static void frame_read_callback(scarletbook_handle_t *handle, uint8_t* frame_dat
 }
 
 #ifdef __lv2ppu__
+static void scarletbook_process_frames_thread(void *args){
+#else
+static void *scarletbook_process_frames_thread(void *void_args){
+#endif
+    struct scarletbook_process_frames_args *args;
+    args = (struct scarletbook_process_frames_args *)void_args;
+    scarletbook_process_frames(args->handle, args->read_buffer, args->blocks_read, args->last_block, args->frame_read_callback, args->userdata);
+    return 0;
+}
+
+int scarletbook_output_start_process_frames_thread(scarletbook_output_t *output, struct scarletbook_process_frames_args *args)
+{
+    int ret = 0;
+
+#ifdef __lv2ppu__
+    ret = sysThreadCreate(&output->sub_processing_thread_id,
+                          scarletbook_process_frames_thread,
+                          (void *) args,
+                          1050,
+                          8192,
+                          THREAD_JOINABLE,
+                          "scarletbook_process_frames_thread");
+#else
+    ret = pthread_create(&output->sub_processing_thread_id, NULL, scarletbook_process_frames_thread, (void *) args);
+#endif
+    if (ret)
+    {
+        LOG(lm_main, LOG_ERROR, ("return code from sub processing thread creation is %d\n", ret));
+    }
+
+    return ret;
+}
+
+#ifdef __lv2ppu__
 static void processing_thread(void *arg)
 #else
 static void *processing_thread(void *arg)
@@ -321,9 +379,11 @@ static void *processing_thread(void *arg)
     scarletbook_output_t *output = (scarletbook_output_t *) arg;
     scarletbook_handle_t *handle = output->sb_handle;
     struct list_head * node_ptr;
-    scarletbook_output_format_t * ft;
+    scarletbook_output_format_t * ft = NULL;
     int non_encrypted_disc = 0;
     int checked_for_non_encrypted_disc = 0;
+    int sub_processing_thread_run = 0;
+    scarletbook_output_format_t *ft_sub = NULL;
 
     sysAtomicSet(&output->processing, 1);
     while (!list_empty(&output->ripping_queue))
@@ -332,7 +392,7 @@ static void *processing_thread(void *arg)
 
         ft = list_entry(node_ptr, scarletbook_output_format_t, siblings);
         list_del(node_ptr);
-
+        
         if (ft->dsd_encoded_export && ft->dst_encoded_import)
         {
             ft->dst_decoder = dst_decoder_create(ft->channel_count, frame_decoded_callback, frame_error_callback, ft);
@@ -356,6 +416,8 @@ static void *processing_thread(void *arg)
             uint32_t encrypted_start_2 = 0;
             uint32_t encrypted_end_1 = 0;
             uint32_t encrypted_end_2 = 0;
+            struct list_head * node_ptr_sub;
+
             int encrypted;
 
             // set the encryption range
@@ -374,12 +436,40 @@ static void *processing_thread(void *arg)
             ft->current_lsn = ft->start_lsn;
             end_lsn = ft->start_lsn + ft->length_lsn;
 
+            if(!list_empty(&ft->sub_queue))
+            {
+                node_ptr_sub = ft->sub_queue.next;
+                ft_sub = list_entry(node_ptr_sub, scarletbook_output_format_t, siblings);
+                if(ft->current_lsn < ft_sub->start_lsn)
+                {
+                    // Read up to the beginning of the first track
+                    end_lsn = ft_sub->start_lsn;
+                    ft_sub = NULL;
+                }
+                else if(ft->current_lsn == ft_sub->start_lsn){
+                    // First track starting immediately
+                    list_del(node_ptr_sub);
+                    end_lsn = ft_sub->start_lsn + ft_sub->length_lsn - 1;
+                    if(create_output_file(ft_sub))
+                        break;
+                    if (ft_sub->dsd_encoded_export && ft_sub->dst_encoded_import)
+                    {
+                        ft_sub->dst_decoder = dst_decoder_create(ft_sub->channel_count, frame_decoded_callback, frame_error_callback, ft_sub);
+                    }
+                }
+                else{
+                    // We should never get here.
+                    break;
+                }
+            }
+
             sysAtomicSet(&output->stop_processing, 0);
 
             while (sysAtomicRead(&output->stop_processing) == 0)
             {
                 if (ft->current_lsn < end_lsn)
                 {
+                    uint8_t *buf;
                     // check what block ranges are encrypted..
                     if (ft->current_lsn < encrypted_start_1)
                     {
@@ -408,8 +498,21 @@ static void *processing_thread(void *arg)
                     }
                     block_size = min(end_lsn - ft->current_lsn, block_size);
 
-                    // read some blocks
-                    block_size = (uint32_t) sacd_read_block_raw(ft->sb_handle->sacd, ft->current_lsn, block_size, output->read_buffer);
+                    // read some blocks to a local buffer first because previous frames might be still in process in a separate thread.
+                    buf = malloc(sizeof(uint8_t) * block_size * SACD_LSN_SIZE);
+                    block_size = (uint32_t) sacd_read_block_raw(ft->sb_handle->sacd, ft->current_lsn, block_size, buf);
+
+                    // Wait for the eixting frame processing thread to finish
+                    if(sub_processing_thread_run){
+                        sub_processing_thread_run  = 0;
+                        if(scarletbook_output_join_process_frames_thread(output)){
+                            // We should never get here
+                            break;
+                        }
+                    }
+                    // Copy the content of the local buffer to output->read_buffer
+                    memcpy(output->read_buffer, buf, sizeof(uint8_t) * block_size * SACD_LSN_SIZE);
+                    free(buf);
 
                     ft->current_lsn += block_size;
                     output->stats_total_sectors_processed += block_size;
@@ -447,6 +550,23 @@ static void *processing_thread(void *arg)
                     {
                         write_block(ft, output->read_buffer, block_size);
                     }
+                    // Sub processing
+                    if (ft_sub){
+                        if (ft_sub->handler.flags & OUTPUT_FLAG_DSD || ft_sub->handler.flags & OUTPUT_FLAG_DST){
+                            struct scarletbook_process_frames_args process_frames_args;
+
+                            process_frames_args.handle = ft_sub->sb_handle;
+                            process_frames_args.read_buffer = output->read_buffer;
+                            process_frames_args.blocks_read = block_size;
+                            process_frames_args.last_block = ft->current_lsn == end_lsn;
+                            process_frames_args.frame_read_callback = frame_read_callback;
+                            process_frames_args.userdata = ft_sub;
+                            // Push the read frames for processing (including DST decompression if applicable) in a separate thread.
+                            // This thread is expected to finish before the end of the next raw block read.  If not, we wait for it to finish.
+                            scarletbook_output_start_process_frames_thread(output, &process_frames_args);
+                            sub_processing_thread_run  = 1;
+                        }
+                    }
 
                     // update statistics
                     if (output->stats_progress_callback)
@@ -457,15 +577,89 @@ static void *processing_thread(void *arg)
                 }
                 else
                 {
-                    break;
+                    if(ft_sub){
+                        if(sub_processing_thread_run){
+                            sub_processing_thread_run  = 0;
+                            if(scarletbook_output_join_process_frames_thread(output)){
+                                // We should never get here
+                                break;
+                            }
+                        }
+
+                        if (ft_sub->dsd_encoded_export && ft_sub->dst_encoded_import)
+                        {
+                            dst_decoder_destroy(ft_sub->dst_decoder);
+                        }
+                        close_output_file(ft_sub);
+                        ft_sub = NULL;
+                    }
+                    if(!list_empty(&ft->sub_queue)){
+                        node_ptr_sub = ft->sub_queue.next;
+                        ft_sub = list_entry(node_ptr_sub, scarletbook_output_format_t, siblings);
+                        if(ft->current_lsn < ft_sub->start_lsn){
+                            // Read up to the beginning of the next track
+                            end_lsn = ft_sub->start_lsn;
+                            ft_sub = NULL;
+                        }
+                        else if (ft->current_lsn >= ft_sub->start_lsn){
+                            // Next sub queue item starting
+                            if(create_output_file(ft_sub))
+                                break;
+                            list_del(node_ptr_sub);
+                            end_lsn = ft_sub->start_lsn + ft_sub->length_lsn;
+                            if (ft_sub->dsd_encoded_export && ft_sub->dst_encoded_import)
+                            {
+                                ft_sub->dst_decoder = dst_decoder_create(ft_sub->channel_count, frame_decoded_callback, frame_error_callback, ft_sub);
+                            }
+                        }
+                        else{
+                            // We should never get here
+                            break;
+                        }
+                    }
+                    else{
+                        // No more item in the sub queue
+                        end_lsn = ft->start_lsn + ft->length_lsn;
+                        if(!(ft->current_lsn < end_lsn)){
+                            break;
+                        }
+                    }
                 }
             }
         }
 
         if (sysAtomicRead(&output->stop_processing) == 1)
         {
+            char *file_to_remove;
+
+            // Cleaning up the existing sub process
+            if(sub_processing_thread_run){
+                scarletbook_output_join_process_frames_thread(output);
+            }
+            sub_processing_thread_run = 0;
+
+            if(ft_sub){
+                file_to_remove = strdup(ft_sub->filename);
+                
+                if (ft_sub->dsd_encoded_export && ft_sub->dst_encoded_import)
+                {
+                    dst_decoder_destroy(ft_sub->dst_decoder);
+                }
+                close_output_file(ft_sub);
+                
+#ifdef __lv2ppu__
+                if (sysFsUnlink(file_to_remove) != 0)
+#else
+                if (remove(file_to_remove) != 0)
+#endif
+                {
+                    LOG(lm_main, LOG_ERROR, ("user cancelled, error removing: %s, [%s]", file_to_remove, strerror(errno)));
+                }
+                free(file_to_remove);
+            }
+            
             // make a copy of the filename
-            char *file_to_remove = strdup(ft->filename);
+            file_to_remove = strdup(ft->filename);
 
             sysAtomicSet(&output->processing, 0);
 
@@ -581,7 +775,7 @@ int scarletbook_output_destroy(scarletbook_output_t *output)
 #else
     scarletbook_output_interrupt(output);
     ret = pthread_join(output->processing_thread_id, &thr_exit_code);
-#endif    
+#endif
     if (ret != 0)
     {
         LOG(lm_main, LOG_ERROR, ("processing thread didn't close properly... %x", thr_exit_code));
@@ -592,5 +786,24 @@ int scarletbook_output_destroy(scarletbook_output_t *output)
     free(output->read_buffer);
     free(output);
 
+    return ret;
+}
+
+int scarletbook_output_join_process_frames_thread(scarletbook_output_t *output){
+#ifdef __lv2ppu__
+    uint64_t thr_exit_code;
+#else
+    void *thr_exit_code;
+#endif
+    int ret = 0;
+#ifdef __lv2ppu__
+    ret = sysThreadJoin(output->sub_processing_thread_id, &thr_exit_code);
+#else
+    ret = pthread_join(output->sub_processing_thread_id, &thr_exit_code);
+#endif    
+    if (ret != 0)
+    {
+            LOG(lm_main, LOG_ERROR, ("sub processing thread didn't close properly... %x", thr_exit_code));
+    }
     return ret;
 }

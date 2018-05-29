@@ -75,7 +75,11 @@ char * make_filename(const char * path, const char * dir, const char * file, con
     {
         strncpy(&ret[pos], path, strlen(path));
         pos     += strlen(path);
+#ifdef _WIN32
+        ret[pos] = '\\';
+#else
         ret[pos] = '/';
+#endif
         pos++;
     }
     if (dir)
@@ -84,7 +88,11 @@ char * make_filename(const char * path, const char * dir, const char * file, con
         sanitize_filepath(tmp_dir);
         strncpy(&ret[pos], tmp_dir, strlen(tmp_dir));
         pos     += strlen(tmp_dir);
+#ifdef _WIN32
+        ret[pos] = '\\';
+#else
         ret[pos] = '/';
+#endif
         pos++;
         free(tmp_dir);
     }
@@ -256,6 +264,7 @@ int recursive_mkdir(char* path_and_name, mode_t mode)
                 free(wide_path_and_name);
             }
 #else
+            fprintf(stderr, "%s\n", path_and_name);
             rc = mkdir(path_and_name, mode);
 #endif
 #ifdef __lv2ppu__
@@ -350,9 +359,9 @@ void get_unique_dir(char *device, char **dir)
     char *dir_org = strdup(*dir);
     char *device_dir = make_filename(device, *dir, 0, 0);
     dir_exists = (stat(device ? device_dir : *dir, &stat_dir) == 0);
-    free(device_dir);
     while (dir_exists)
     {
+        free(device_dir);
         int len = strlen(dir_org) + 10;
         char *dir_copy = (char *) malloc(len);
         snprintf(dir_copy, len, "%s (%d)", dir_org, count++);
@@ -360,6 +369,19 @@ void get_unique_dir(char *device, char **dir)
         *dir = dir_copy;
         device_dir = make_filename(device, dir_copy, 0, 0);
         dir_exists = (stat(device ? device_dir : dir_copy, &stat_dir) == 0);
+    }
+    if(device){
+        free(*dir);
+        *dir = strdup(device_dir);
+        // Remove the trailing slash
+#ifdef _WIN32
+        if((*dir)[strlen(*dir)-1]=='\\'){
+#else
+        if((*dir)[strlen(*dir)-1]=='/'){
+#endif
+            (*dir)[strlen(*dir)-1] = '\0';
+        }
+         
         free(device_dir);
     }
     free(dir_org);

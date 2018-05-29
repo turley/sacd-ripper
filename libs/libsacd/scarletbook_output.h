@@ -88,7 +88,7 @@ struct scarletbook_output_format_t
     fwprintf_callback_t             cb_fwprintf;
 
     int                             dsf_nopad;
-
+    struct list_head                sub_queue;
     struct list_head                siblings;
 }; 
 
@@ -99,10 +99,11 @@ typedef void (*stats_track_callback_t)(char *filename, int current_track, int to
 
 scarletbook_output_t *scarletbook_output_create(scarletbook_handle_t *, stats_track_callback_t, stats_progress_callback_t, fwprintf_callback_t);
 int scarletbook_output_destroy(scarletbook_output_t *);
-int scarletbook_output_enqueue_track(scarletbook_output_t *, int, int, char *, char *, int, int);
+int scarletbook_output_enqueue_track(scarletbook_output_t *, int, int, char *, char *, int, int, int);
 int scarletbook_output_enqueue_raw_sectors(scarletbook_output_t *, int, int, char *, char *);
 int scarletbook_output_start(scarletbook_output_t *);
 void scarletbook_output_interrupt(scarletbook_output_t *);
 int scarletbook_output_is_busy(scarletbook_output_t *);
+int scarletbook_output_join_process_frames_thread(scarletbook_output_t *);
 
 #endif /* SCARLETBOOK_OUTPUT_H_INCLUDED */

@@ -1,4 +1,5 @@
-
+Disclaimer
+==========
    DISCLAIMER.  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
    CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING,
    BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
@@ -12,206 +13,62 @@
    USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
    DAMAGE.
 
-SACD Ripper PS3 installation
-============================
+What this is
+============
 
-There are three main steps to install the PS3 SACD Ripper:
+This is a fork of sacd-ripper/sacd-ripper.  For original release documents, please refer to https://github.com/sacd-ripper/sacd-ripper
 
-1. Install a custom firmware (see instructions below) that allows patching
-   and the installation of custom applications.
-2. Download or Compile the sacd-ripper.pkg file and install this on your PS3
-3. Download the PS3 keys and use this on first time installation (see 
-   instructions below)
+This fork adds the following additional features to the original sacd-ripper:
 
-Custom Firmware Installation
-============================
+1. Padding-less DSF generation (-z):  Some players do not handle zero padding in DSF correctly resulting in a pop noise at a track transition.  With this option, instead of zero padding, the data fragment that doesn't perfectly fit in the 4096 Bytes/channel block size at the tail of a track is carried forward to the head of the next track so no zero padding is needed.  This is a loss-less process.  This option cannot be combined with the -t option because continuous processing of the entire album is needed for this option to work.
 
-Make sure you have a PS3 model with SACD compatible player. For more information
-on what model specifically go to: http://ps3sacd.com/faq.html#_Toc180147566
+2. Concurrent ISO+DSF/DSDIFF processing (-w):  With this option, both ISO (-I) and DSF (-s) or DSDIFF (-p) can be generated concurrently.  This is much more efficient than generating ISO and DSF/DSDIFF sequentially because ISO generation is a very light process in terms of CPU usage while DST decompression (mandatory for DSF, optional for DSDIFF) is not.  The run time of this process is expected to be by the slower of ISO and DSF/DSDIFF generation.
 
-You need to install a custom firmware to be able to rip SACDs. At this time of
-writing installing custom PS3 firmware isn't possible for firmware 3.56 and upwards.
-So in order to install the correct firmware you'll have to make sure your firmware
-is lower or equal to 3.55. A downgrade for a firmware higher than 3.55 is NOT
-available.
+3. Output directory options (-o and -y):  These allow users to specify the output directory.  For the concurent processing mode, -o is for ISO and -y is for DSF/DSDIFF.  The directories specified by these options must exist.  Output directories default to the current directory.
 
-The custom firmware that is needed must be 3.55 and should allow patching. Most
-custom firmwares like Kmeaw, Rebug, etc.. all facilitate this. Google for
-"kmeaw cfw" and you'll find several download links.
+4. Enabled max compiler optimization in CMakeList.txt for gcc.  This provides about 3x speed boost to DST decoding (mandatory for DSF generation) for Linux and MacOS.
 
-Custom Firmware installation steps:
+Development of this software is primarily done on Linux.  Functionality on Windows has been checked.
 
-1. Plug a USB stick into your computer
-2. Copy the custom firmware file that you downloaded to a USB memory
-   stick as /PS3/UPDATE/PS3UPDAT.PUP. 
-3. Plug the USB stick into your PS3
-4. Navigate to Settings Tab
-5. Choose System Update
-6. Choose Update via Storage Media
-7. It will say it found Version 3.55
-8. Choose OK
-9. Accept Conditions and Follow the instructions
-
-If the steps above did not work for you, then you are probably on 3.55 already.
-You will have to do a recovery menu mode installation:
-
-1. Plug a USB stick into your computer
-2. Copy the custom firmware file that you downloaded to a USB memory
-   stick as /PS3/UPDATE/PS3UPDAT.PUP. 
-3. Plug the USB stick into your PS3
-4. Power down the PS3 through the menu
-5. Now press and HOLD the power button, the system will startup and shutdown
-   again
-6. Release the power button, then press & HOLD power again, you'll hear one
-   beep followed by two consecutive beeps
-7. Release power then follow the on-screen instructions. You're now in the
-   recovery menu
-8. Connect the USB device and select "System Update."
-9. Accept Conditions and Follow the instructions
-
-SACD Ripper Installation Instructions
-=====================================
-
-Now you've completed the firmware upgrade you are ready to install
-sacd-ripper.pkg. You may compile the sacd-ripper.pkg or you can use your
-Google skills to find a pre-compiled package. (no, I will not distribute
-the sacd-ripper.pkg as that could potentially give me legal issues).
-
-In order for the PS3 BluRay player to authenticate the SACD disc and to decode
-DST to DSD two SPU isoself modules will be extracted from the system. In order
-to do so you must give the SACD-Ripper the PS3 keys so it can extract them
-automatically.
-
-Get the PS3 keys from https://github.com/Mamdooh/PS3keys and put these in the
-root of an USB disc. They will be asked for during first time installation,
-after that you can remove the keys from your USB disc.
-
-SACD Ripper Build Instructions
-==============================
-
-To compile you will need the psl1ght suite. If you want to compile on a windows
-environment I advice you to follow the CygWin installation as the MingW
-installation is unstable.
-
-When psl1ght has been properly setup you need to configure SACD-Ripper with the
-following commands::
-
-    git clone https://github.com/sacd-ripper/sacd-ripper.git
-    cd sacd-ripper
-    sh configure
-    make
-
-SACD-Ripper should compile without errors and warnings. Once completed you
-should have the sacd-ripper.pkg package that can be installed on your PS3.
-
-SACD Extract Build Instructions
-===============================
-
-First you need to install the latest version of cmake: http://www.cmake.org/
-Now you can configure SACD extract using a "cmake ." followed by a "make"
-command or when you don't like the command line you can generate 
-project files for your favorite GUI (XCode, MSVC, etc..).
-
-On Windows you need pthread support and libiconv. Pthread support for windows
-can be downloaded from: http://sourceware.org/pthreads-win32/
-
-And to compile libiconv on windows you can do the following:
-
-1. Open the Visual Studio Command prompt
-2. Change directory to libs\libiconv
-3. run: "nmake -f Makefile.msvc NO_NLS=1"
-4. now you can compile using the MSVC project file
-
-On Linux the program currently builds only in root's home directory.
-You do not need to manually build the libiconv program.  There is no
-installation step available yet, so you will need to copy the program
-to a directory in your PATH, such as /usr/local/bin on most Linux
-installations. To compile on Linux use a sequence like this::
-
-    sudo su -
-    [Enter password if needed]
-    cd /root
-    git clone https://github.com/sacd-ripper/sacd-ripper.git
-    cd sacd-ripper/tools/sacd_extract/
-    cmake .
-    make
-    cp sacd_extract /usr/local/bin/
-
-SACD Ripper/Extract Usage Instructions
+Usage
 ======================================
-
-From version 0.3.6 and upwards SACD Ripper has two modes of operation:
-
-1. Daemon mode (selected by default if you don't make a selection within 5
-   seconds after booting SACD Ripper).
-2. ISO extraction mode (the previous versions of SACD Ripper allowed you to
-   extract DSDIFF, DSF directly, but this feature has been removed in favor 
-   of local extraction using SACD Extract).
-
-SACD Extract (available on Windows, Linux, OS X) allows you to extract
-individual tracks from ISO files when operated in file mode or from the SACD 
-Ripper when operated in Daemon mode.
 
 The following options are available for the sacd_extract commandline tool: ::
 
-  Usage: sacd_extract [options] [outfile]
-    -2, --2ch-tracks                : Export two channel tracks (default)
-    -m, --mch-tracks                : Export multi-channel tracks
-    -e, --output-dsdiff-em          : output as Philips DSDIFF (Edit Master) file
-    -p, --output-dsdiff             : output as Philips DSDIFF file
-    -s, --output-dsf                : output as Sony DSF file
-    -I, --output-iso                : output as RAW ISO
-    -c, --convert-dst               : convert DST to DSD
-    -C, --export-cue                : Export a CUE Sheet
-    -i, --input[=FILE]              : set source and determine if "iso" image,
-                                      device or server (ex. -i192.168.1.10:2002)
-    -P, --print                     : display disc and track information
-  
-  Help options:
-    -?, --help                      : Show this help message
-    --usage                         : Display brief usage message
+  -2, --2ch-tracks                : Export two channel tracks (default)
+  -m, --mch-tracks                : Export multi-channel tracks
+  -e, --output-dsdiff-em          : output as Philips DSDIFF (Edit Master) file
+  -p, --output-dsdiff             : output as Philips DSDIFF file
+  -s, --output-dsf                : output as Sony DSF file
+  -z, --dsf-nopad                 : Do not zero pad DSF (cannot be used with -t)
+  -t, --select-track              : only output selected track(s) (ex. -t 1,5,13)
+  -I, --output-iso                : output as RAW ISO
+  -w, --concurrent                : Concurrent ISO+DSF/DSDIFF processing mode
+  -c, --convert-dst               : convert DST to DSD
+  -C, --export-cue                : Export a CUE Sheet
+  -i, --input[=FILE]              : set source and determine if "iso" image,
+                                    device or server (ex. -i 192.168.1.10:2002)
+  -o, --output-dir[=DIR]          : Output directory (ISO output dir for concurrent processing mode)
+  -y, --output-dir-conc[=DIR]     : DSF/DSDIFF Output directory for concurrent processing mode
+  -P, --print                     : display disc and track information
+
 
 Usage examples
 ==============
 
-Extract all stereo tracks to multiple DSDIFF files and convert all DST to DSD::
+Extract all stereo tracks in uncompressed DSDIFF from an ISO to /home/user/blah/<album_name>::
 
-    $ sacd_extract -2 -p -c -i"Foo_Bar_RIP.ISO"
+    $ sacd_extract -2 -p -c -i"Foo_Bar_RIP.ISO" -o /home/user/blah
 
-Extract all multi channel tracks from the given ISO to multiple DSF files and 
-convert all DST to DSD::
+Extract all stereo tracks in padding-less DSF files from an ISO to /home/user/blah/<album_name>::
 
-    $ sacd_extract -2 -s -i"Foo_Bar_RIP.ISO"
+    $ sacd_extract -2 -s -z -i"Foo_Bar_RIP.ISO" -o /home/user/blah
 
-Extract a single DSDIFF/DSD Multi-Channel Edit Master track from the given ISO
-and convert all DST to DSD::
+Extract an ISO from a server to /home/user/blah/<album_name>.iso::
 
-    $ sacd_extract -m -e -c -i"Foo_Bar_RIP.ISO"
+    $ sacd_extract -I -i192.168.1.10:2002 -o /home/user/blah
 
-Extract a single ISO file from the SACD Ripper Daemon (IP address and Port is
-displayed on startup). You can use SACD Extract again on the ISO file to extract
-the DSD data (see the three examples above)::
+Concurrently extract an ISO file to /home/user/blah/<album_name>.iso and all stereo tracks in DSF to /tmp/blah/<album_name> from a server.::
 
-    $ sacd_extract -I -i192.168.1.10:2002
+    $ sacd_extract -I -s -w -z -i192.168.1.10:2002 -o /home/user/blah -y /tmp/blah
 
-Extract all multi channel tracks from the SACD Ripper Daemon (IP address and
-Port is displayed on startup) to multiple DSDIFF files and keep the DST format::
-
-    $ sacd_extract -m -p -i192.168.1.10:2002
-
-Generate a sacd_log.txt file that contains the ISRC codes which should/could
-be used for ISO verification::
-
-    $ sacd_extract -P -i192.168.1.10:2002 >sacd_log.txt
-
-
-Thank you!
-==========
-
-A big thank you goes to:
-
-* Graf Chokolo
-* Geoffrey Levand :-)
-* Max
-* vfalks
-* Patrick
