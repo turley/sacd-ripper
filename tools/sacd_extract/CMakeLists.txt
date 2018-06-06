@@ -25,12 +25,12 @@ include_directories("../../libs/libid3")
 include_directories("../../libs/libsacd")
 
 # Extra flags for GCC
-if (CMAKE_COMPILER_IS_GNUCC)
+if (CMAKE_COMPILER_IS_GNUCC OR (CMAKE_C_COMPILER_ID MATCHES "Clang"))
   add_definitions(
       -pipe
       -Wall -Wextra -Wcast-align -Wpointer-arith -O3
       -Wno-unused-parameter -msse2)
-endif (CMAKE_COMPILER_IS_GNUCC)
+endif (CMAKE_COMPILER_IS_GNUCC OR (CMAKE_C_COMPILER_ID MATCHES "Clang"))
 
 if (MSVC)
     SET (CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MTd")
