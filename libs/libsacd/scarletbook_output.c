@@ -447,6 +447,7 @@ static void *processing_thread(void *arg)
                     ft_sub = NULL;
                 }
                 else if(ft->current_lsn == ft_sub->start_lsn){
+                    output->stats_track_callback(ft_sub->filename, ft_sub->track + 1, handle->area[ft_sub->area].area_toc->track_count);
                     // First track starting immediately
                     list_del(node_ptr_sub);
                     end_lsn = ft_sub->start_lsn + ft_sub->length_lsn - 1;
@@ -603,6 +604,7 @@ static void *processing_thread(void *arg)
                         }
                         else if (ft->current_lsn >= ft_sub->start_lsn){
                             // Next sub queue item starting
+                            output->stats_track_callback(ft_sub->filename, ft_sub->track + 1, handle->area[ft_sub->area].area_toc->track_count);
                             if(create_output_file(ft_sub))
                                 break;
                             list_del(node_ptr_sub);

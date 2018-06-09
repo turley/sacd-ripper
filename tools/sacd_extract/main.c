@@ -412,15 +412,15 @@ int main(int argc, char* argv[])
                                 // create the output folder
                                 get_unique_dir(opts.output_dir_conc, &albumdir);
                                 mkdir(albumdir, 0774);
-                                fprintf(stderr, "Concurrent mode enabled.\n");
-                                fprintf(stderr, "ISO output: %s\n", file_path);
+                                fwprintf(stdout, L"Concurrent mode enabled.\n");
+                                fwprintf(stdout, L"ISO output: %s\n", file_path);
                                 
 
                                 if(opts.output_dsf){
-                                    fprintf(stderr, "DSF output: %s\n", albumdir);
+                                    fwprintf(stdout, L"DSF output: %s\n", albumdir);
                                 } 
                                 else{
-                                    fprintf(stderr, "DSDIFF output: %s\n", albumdir);
+                                    fwprintf(stdout, L"DSDIFF output: %s\n", albumdir);
                                 } 
                                 // fill the sub queue with items to rip
                                 for (i = 0; i < handle->area[area_idx].area_toc->track_count; i++) 
