@@ -382,7 +382,7 @@ static void *processing_thread(void *arg)
     scarletbook_output_format_t * ft = NULL;
     int non_encrypted_disc = 0;
     int checked_for_non_encrypted_disc = 0;
-    int sub_processing_thread_run = 0;
+    int processing_thread_run = 0;
     scarletbook_output_format_t *ft_sub = NULL;
 
     sysAtomicSet(&output->processing, 1);
@@ -504,8 +504,8 @@ static void *processing_thread(void *arg)
                     block_size = (uint32_t) sacd_read_block_raw(ft->sb_handle->sacd, ft->current_lsn, block_size, buf);
 
                     // Wait for the eixting frame processing thread to finish
-                    if(sub_processing_thread_run){
-                        sub_processing_thread_run  = 0;
+                    if(processing_thread_run){
+                        processing_thread_run  = 0;
                         if(scarletbook_output_join_process_frames_thread(output)){
                             // We should never get here
                             break;
@@ -544,7 +544,15 @@ static void *processing_thread(void *arg)
                     // process DSD & DST frames
                     if (ft->handler.flags & OUTPUT_FLAG_DSD || ft->handler.flags & OUTPUT_FLAG_DST)
                     {
-                        scarletbook_process_frames(ft->sb_handle, output->read_buffer, block_size, ft->current_lsn == end_lsn, frame_read_callback, ft);
+                        struct scarletbook_process_frames_args process_frames_args;
+                        process_frames_args.handle = ft->sb_handle;
+                        process_frames_args.read_buffer = output->read_buffer;
+                        process_frames_args.blocks_read = block_size;
+                        process_frames_args.last_block = ft->current_lsn == end_lsn;
+                        process_frames_args.frame_read_callback = frame_read_callback;
+                        process_frames_args.userdata = ft;
+                        scarletbook_output_start_process_frames_thread(output, &process_frames_args);
+                        processing_thread_run = 1;
                     }
                     // ISO output is written without frame processing                        
                     else if (ft->handler.flags & OUTPUT_FLAG_RAW)
@@ -565,7 +573,7 @@ static void *processing_thread(void *arg)
                             // Push the read frames for processing (including DST decompression if applicable) in a separate thread.
                             // This thread is expected to finish before the end of the next raw block read.  If not, we wait for it to finish.
                             scarletbook_output_start_process_frames_thread(output, &process_frames_args);
-                            sub_processing_thread_run  = 1;
+                            processing_thread_run  = 1;
                         }
                     }
 
@@ -579,8 +587,8 @@ static void *processing_thread(void *arg)
                 else
                 {
                     if(ft_sub){
-                        if(sub_processing_thread_run){
-                            sub_processing_thread_run  = 0;
+                        if(processing_thread_run){
+                            processing_thread_run  = 0;
                             if(scarletbook_output_join_process_frames_thread(output)){
                                 // We should never get here
                                 break;
@@ -635,10 +643,10 @@ static void *processing_thread(void *arg)
             char *file_to_remove;
 
             // Cleaning up the existing sub process
-            if(sub_processing_thread_run){
+            if(processing_thread_run){
                 scarletbook_output_join_process_frames_thread(output);
             }
-            sub_processing_thread_run = 0;
+            processing_thread_run = 0;
 
             if(ft_sub){
                 file_to_remove = strdup(ft_sub->filename);
