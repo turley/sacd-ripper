@@ -16,9 +16,9 @@ Disclaimer
 What this is
 ============
 
-This is a fork of sacd-ripper/sacd-ripper.  For original release documents, please refer to https://github.com/sacd-ripper/sacd-ripper
+This is a fork of sacd-ripper/sacd-ripper.  For original release documents, please refer to https://github.com/sacd-ripper/sacd-ripper .  This fork focuses only on improvement of sacd_extract, so most of the irrelevant codes have been removed.
 
-This fork adds the following additional features to the original sacd-ripper:
+This fork adds the following additional features to the original sacd_extract.
 
 1. Padding-less DSF generation (-z):  Some players do not handle zero padding in DSF correctly resulting in a pop noise at a track transition.  With this option, instead of zero padding, the data fragment that doesn't perfectly fit in the 4096 Bytes/channel block size at the tail of a track is carried forward to the head of the next track so no zero padding is needed.  This is a loss-less process.  This option cannot be combined with the -t option because continuous processing of the entire album is needed for this option to work.
 
@@ -30,7 +30,7 @@ This fork adds the following additional features to the original sacd-ripper:
 
 5. More ID3v2 frames are added.  TSRC (ISRC), TPUB (Publisher), TCOP (Copyright message), TCOM (Composer), and TPE2 frames have been added. TPE2 is used as album artist which is a common practice.  Also, the fix for ID3 size coding issue contributed by David Bryant has been merged.
 
-6. Mingw-w64 support: This allows compilation of a Windows binary wihout Visual Studio.
+6. Mingw-w64 support: This allows compilation of a Windows binary without Visual Studio.
 
 7. A little more aggressive multithreading: Raw read and DST decoding, which used to happen sequentially, are performed in parallel.
 
