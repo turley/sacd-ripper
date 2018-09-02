@@ -30,6 +30,10 @@ This fork adds the following additional features to the original sacd-ripper:
 
 5. More ID3v2 frames are added.  TSRC (ISRC), TPUB (Publisher), TCOP (Copyright message), TCOM (Composer), and TPE2 frames have been added. TPE2 is used as album artist which is a common practice.  Also, the fix for ID3 size coding issue contributed by David Bryant has been merged.
 
+6. Mingw-w64 support: This allows compilation of a Windows binary wihout Visual Studio.
+
+7. A little more aggressive multithreading: Raw read and DST decoding, which used to happen sequentially, are performed in parallel.
+
 Development of this software is primarily done on Linux.  Functionality on Windows has been checked.
 
 Usage
@@ -73,4 +77,25 @@ Extract an ISO from a server to /home/user/blah/<album_name>.iso::
 Concurrently extract an ISO file to /home/user/blah/<album_name>.iso and all stereo tracks in DSF to /tmp/blah/<album_name> from a server.::
 
     $ sacd_extract -I -s -w -z -i192.168.1.10:2002 -o /home/user/blah -y /tmp/blah
+
+Compilation
+===========
+
+Linux::
+
+    $ cd tools/sacd_extract
+    $ cmake .
+    $ make
+
+Windows binary compilation on Linux using Mingw-w64 preceded by iconv compilation for Mingw-w64::
+
+    $ tar -xzf libiconv-1.15.tar.gz
+    $ cd libiconv-1.15
+    $ ./configure --host=x86_64-w64-mingw32 --prefix=/usr/x86_64-w64-mingw32
+    $ make
+    $ sudo make install
+
+    $ cd tools/sacd_extract
+    $ cmake -DMINGW64=YES
+    $ make
 

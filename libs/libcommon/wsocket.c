@@ -269,15 +269,18 @@ int socket_recv(p_socket ps, char *data, size_t count, size_t *got, int flags, p
     *got = 0;
     if (*ps == SOCKET_INVALID) return IO_CLOSED;
     for ( ;; ) {
-        int taken = recv(*ps, data, (int) count, flags);
-        if (taken > 0) {
-            *got = taken;
-            return IO_DONE;
+        // recv doesn't seem to read up to count despite MSG_WAITALL for the combination of Mingw-w64 + Wine.
+        // So recv is run multiple times until all bytes are received in that case.
+        int taken = recv(*ps, data + *got, count - *got, flags);
+        *got += taken;
+        if(*got >= count){
+                return IO_DONE;
         }
-        if (taken == 0) return IO_CLOSED;
+        /*if (taken == 0) return IO_CLOSED;
         err = WSAGetLastError();
         if (err != WSAEWOULDBLOCK) return err;
         if ((err = socket_waitfd(ps, WAITFD_R, tm)) != IO_DONE) return err;
+        */
     }
     return IO_UNKNOWN;
 }

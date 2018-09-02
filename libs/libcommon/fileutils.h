@@ -24,7 +24,7 @@
 
 #include <stdio.h>
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(__MINGW32__)
 typedef int mode_t;
 #else
 #include <sys/stat.h>

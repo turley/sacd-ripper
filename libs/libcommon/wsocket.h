@@ -28,7 +28,7 @@
 /*=========================================================================*\
 * WinSock include files
 \*=========================================================================*/
-#include <Winsock2.h>
+#include <winsock2.h>
 
 typedef int socklen_t;
 typedef SOCKET t_socket;
@@ -39,3 +39,4 @@ typedef t_socket *p_socket;
 #endif /* WSOCKET_H */
 
 #endif
+

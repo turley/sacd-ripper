@@ -586,15 +586,16 @@ static void *processing_thread(void *arg)
                 }
                 else
                 {
-                    if(ft_sub){
-                        if(processing_thread_run){
-                            processing_thread_run  = 0;
-                            if(scarletbook_output_join_process_frames_thread(output)){
-                                // We should never get here
-                                break;
-                            }
+                    // Wait for the existing DST decoding thread to finish
+                    if(processing_thread_run){
+                        processing_thread_run  = 0;
+                        if(scarletbook_output_join_process_frames_thread(output)){
+                            // We should never get here
+                            break;
                         }
+                    }
 
+                    if(ft_sub){
                         if (ft_sub->dsd_encoded_export && ft_sub->dst_encoded_import)
                         {
                             dst_decoder_destroy(ft_sub->dst_decoder);

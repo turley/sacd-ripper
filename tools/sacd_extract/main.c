@@ -58,6 +58,12 @@
 #include <utils.h>
 #include <yarn.h>
 
+#ifdef __MINGW32__
+#define MKDIR(a, b) mkdir(a)
+#else
+#define MKDIR(a, b) mkdir(a, b)
+#endif
+
 static struct opts_s
 {
     int            two_channel;
@@ -411,7 +417,7 @@ int main(int argc, char* argv[])
                             if(opts.concurrent && (opts.output_dsf || opts.output_dsdiff)){
                                 // create the output folder
                                 get_unique_dir(opts.output_dir_conc, &albumdir);
-                                mkdir(albumdir, 0774);
+                                MKDIR(albumdir, 0774);
                                 fwprintf(stdout, L"Concurrent mode enabled.\n");
                                 fwprintf(stdout, L"ISO output: %s\n", file_path);
                                 
@@ -463,7 +469,7 @@ int main(int argc, char* argv[])
                     {
                         // create the output folder
                         get_unique_dir(opts.output_dir, &albumdir);
-                        mkdir(albumdir, 0774);
+                        MKDIR(albumdir, 0774);
 
                         // fill the queue with items to rip
                         for (i = 0; i < handle->area[area_idx].area_toc->track_count; i++) 
