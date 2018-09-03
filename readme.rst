@@ -91,7 +91,7 @@ Windows binary compilation on Linux using Mingw-w64 preceded by iconv compilatio
 
     $ tar -xzf libiconv-1.15.tar.gz
     $ cd libiconv-1.15
-    $ ./configure --host=x86_64-w64-mingw32 --prefix=/usr/x86_64-w64-mingw32
+    $ ./configure --host=x86_64-w64-mingw32 --prefix=/usr/x86_64-w64-mingw32 --enable-static
     $ make
     $ sudo make install
 
