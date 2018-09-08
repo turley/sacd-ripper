@@ -34,7 +34,9 @@ This fork adds the following additional features to the original sacd_extract.
 
 7. A little more aggressive multithreading: Raw read and DST decoding, which used to happen sequentially, are performed in parallel.
 
-Development of this software is primarily done on Linux.  Functionality on Windows has been checked.
+8. Stereo and multi-channel extraction in one shot: No longer need to run sacd_extract twice to extract stereo and multi-channel tracks.  In other words, the -2 and -m options can be used simultaneously for DSF/DSDIFF generation.
+
+Development of this software is primarily done on Linux.  Functionality on Windows has been checked.  Windows binary needs to be compiled with Mingw-w64.  Visual Studio is no longer supported.
 
 Usage
 ======================================
@@ -77,6 +79,11 @@ Extract an ISO from a server to /home/user/blah/<album_name>.iso::
 Concurrently extract an ISO file to /home/user/blah/<album_name>.iso and all stereo tracks in DSF to /tmp/blah/<album_name> from a server.::
 
     $ sacd_extract -I -s -w -z -i192.168.1.10:2002 -o /home/user/blah -y /tmp/blah
+
+Concurrently extract an ISO file to /home/user/blah/<album_name>.iso and all stereo and multi-channel tracks in DSF to /tmp/blah/<album_name> from a server.::
+
+    $ sacd_extract -I -s -w -z -2 -m -i192.168.1.10:2002 -o /home/user/blah -y /tmp/blah
+
 
 Compilation
 ===========
