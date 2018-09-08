@@ -330,6 +330,35 @@ int recursive_parent_mkdir(char* path_and_name, mode_t mode)
     return rc;
 }
 
+char *get_unique_path(char *dir, char *file, const char *ext)
+{
+    char *path;
+    char *file_new;
+    unsigned int i = 0;
+    struct stat stat_file;
+
+    file_new = (char *)malloc((strlen(file)+16)*sizeof(char));
+    strcpy(file_new, file);
+    for(i = 0; i < 64; i ++){
+        if(i){
+            snprintf(file_new, strlen(file)+8, "%s (%d)", file, i);
+        }
+        path = make_filename(dir, 0, file_new, ext);
+        if(stat(path, &stat_file) != 0){
+            free(path);
+            path = make_filename(dir, 0, file_new, ext);
+            break;
+        }
+        free(path);
+        path = 0;
+    }
+    free(file_new);
+    if(!path){
+        return 0;
+    }
+    return path;
+}
+
 void get_unique_filename(char **file, const char *ext)
 {
     struct stat stat_file;

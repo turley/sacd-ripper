@@ -64,6 +64,12 @@
 #define MKDIR(a, b) mkdir(a, b)
 #endif
 
+#ifdef _WIN32
+#define CHAR2WCHAR(dst, src) dst = (wchar_t *) charset_convert(src, strlen(src), "UTF-8", sizeof(wchar_t) == 2 ? "UCS-2-INTERNAL" : "UCS-4-INTERNAL")
+#else
+#define CHAR2WCHAR(dst, src) dst = (wchar_t *) charset_convert(src, strlen(src), "UTF-8", "WCHAR_T")
+#endif
+
 static struct opts_s
 {
     int            two_channel;
@@ -325,7 +331,9 @@ static void init(void)
 int main(int argc, char* argv[]) 
 {
     char *albumdir = 0, *musicfilename, *file_path = 0;
-    int i, area_idx;
+    wchar_t *s_wchar;
+    int i, j, area_idx[8];
+    int n_areas = 0;
     int nogo = 0;
     sacd_reader_t *sacd_reader;
 
@@ -382,12 +390,20 @@ int main(int argc, char* argv[])
                     output = scarletbook_output_create(handle, handle_status_update_track_callback, handle_status_update_progress_callback, safe_fwprintf);
 
                     // select the channel area
-                    area_idx = ((has_multi_channel(handle) && opts.multi_channel) || !has_two_channel(handle)) ? handle->mulch_area_idx : handle->twoch_area_idx;
+                    if(has_two_channel(handle) && opts.two_channel){
+                        area_idx[n_areas ++] = handle->twoch_area_idx;
+                    }
+                    if(has_multi_channel(handle) && opts.multi_channel){
+                        area_idx[n_areas ++] = handle->mulch_area_idx;
+                    }
 
                     albumdir = (strlen(opts.output_file) > 0 ? strdup(opts.output_file) : get_album_dir(handle));
 
                     if (opts.output_iso)
                     {
+                        char *albumdir_loc;
+                        albumdir_loc = strdup(albumdir);
+
                         uint32_t total_sectors = sacd_get_total_sectors(sacd_reader);
 #ifdef SECTOR_LIMIT
 #define FAT32_SECTOR_LIMIT 2090000
@@ -396,7 +412,7 @@ int main(int argc, char* argv[])
                         if (total_sectors > FAT32_SECTOR_LIMIT)
                         {
                             musicfilename = (char *) malloc(512);
-                            file_path = make_filename(opts.output_dir, 0, albumdir, "iso");
+                            file_path = make_filename(opts.output_dir, 0, albumdir_loc, "iso");
                             for (i = 1; total_sectors != 0; i++)
                             {
                                 sector_size = min(total_sectors, FAT32_SECTOR_LIMIT);
@@ -410,111 +426,157 @@ int main(int argc, char* argv[])
                         else
 #endif
                         {
-                            get_unique_filename(&albumdir, "iso");
-                            file_path = make_filename(opts.output_dir, 0, albumdir, "iso");
+                            file_path = get_unique_path(opts.output_dir, albumdir_loc, "iso");
                             scarletbook_output_enqueue_raw_sectors(output, 0, total_sectors, file_path, "iso");
+
+                            free(albumdir_loc);
+                            free(file_path);
+                            albumdir_loc = strdup(albumdir);
+
                             // Concurrent iso+dsf/dsdiff generation
                             if(opts.concurrent && (opts.output_dsf || opts.output_dsdiff)){
-                                // create the output folder
-                                get_unique_dir(opts.output_dir_conc, &albumdir);
-                                MKDIR(albumdir, 0774);
-                                fwprintf(stdout, L"Concurrent mode enabled.\n");
-                                fwprintf(stdout, L"ISO output: %s\n", file_path);
-                                
+                                safe_fwprintf(stdout, L"Concurrent mode enabled.\n");
+                                CHAR2WCHAR(s_wchar, file_path);
+                                safe_fwprintf(stdout, L"ISO output: %ls\n", s_wchar);
+                                free(s_wchar);
 
-                                if(opts.output_dsf){
-                                    fwprintf(stdout, L"DSF output: %s\n", albumdir);
-                                } 
-                                else{
-                                    fwprintf(stdout, L"DSDIFF output: %s\n", albumdir);
-                                } 
+                                albumdir_loc = (char *)malloc(strlen(albumdir)+16);
                                 // fill the sub queue with items to rip
-                                for (i = 0; i < handle->area[area_idx].area_toc->track_count; i++) 
-                                {
-                                    if (opts.select_tracks && opts.selected_tracks[i] == 0)
-                                        continue;
-
-                                    musicfilename = get_music_filename(handle, area_idx, i, opts.output_file);
-
-                                    if (opts.output_dsf)
-                                    {
-                                        file_path = make_filename(albumdir, 0, musicfilename, "dsf");
-                                        scarletbook_output_enqueue_track(output, area_idx, i, file_path, "dsf", 
-                                            1 /* always decode to DSD */, opts.dsf_nopad && !opts.select_tracks, 1);
-                                    }
-                                    else if (opts.output_dsdiff)
-                                    {
-                                        file_path = make_filename(albumdir, 0, musicfilename, "dff");
-                                        scarletbook_output_enqueue_track(output, area_idx, i, file_path, "dsdiff", 
-                                            (opts.convert_dst ? 1 : handle->area[area_idx].area_toc->frame_format != FRAME_FORMAT_DST), 0, 1);
+                                for (j = 0; j < n_areas; j ++){
+                                    // create the output folder
+                                    // If both stereo and multi-ch tracks are getting processed, create separate directories
+                                    strcpy(albumdir_loc, albumdir);
+                                    if(n_areas > 1){
+                                        strcat(albumdir_loc, j ? " [multi]" : " [stereo]");
                                     }
 
-                                    free(musicfilename);
-                                    free(file_path);
-                                    file_path = 0;
+                                    get_unique_dir(opts.output_dir_conc, &albumdir_loc);
+                                    MKDIR(albumdir_loc, 0774);
+                                    if(opts.output_dsf){
+                                        CHAR2WCHAR(s_wchar, albumdir_loc);
+                                        safe_fwprintf(stdout, L"DSF output: %ls\n", s_wchar);
+                                        free(s_wchar);
+                                    }
+                                    else{
+                                        CHAR2WCHAR(s_wchar, albumdir_loc);
+                                        safe_fwprintf(stdout, L"DSDIFF output: %ls\n", s_wchar);
+                                        free(s_wchar);
+                                    }
+
+                                    for (i = 0; i < handle->area[area_idx[j]].area_toc->track_count; i++) 
+                                    {
+                                        if (opts.select_tracks && opts.selected_tracks[i] == 0)
+                                            continue;
+
+                                        musicfilename = get_music_filename(handle, area_idx[j], i, opts.output_file);
+
+                                        if (opts.output_dsf)
+                                        {
+                                            file_path = make_filename(albumdir_loc, 0, musicfilename, "dsf");
+                                            scarletbook_output_enqueue_track(output, area_idx[j], i, file_path, "dsf", 
+                                                1 /* always decode to DSD */, opts.dsf_nopad && !opts.select_tracks, 1);
+                                        }
+                                        else if (opts.output_dsdiff)
+                                        {
+                                            file_path = make_filename(albumdir_loc, 0, musicfilename, "dff");
+                                            scarletbook_output_enqueue_track(output, area_idx[j], i, file_path, "dsdiff", 
+                                                (opts.convert_dst ? 1 : handle->area[area_idx[j]].area_toc->frame_format != FRAME_FORMAT_DST), 0, 1);
+                                        }
+                                        free(musicfilename);
+                                        free(file_path);
+                                    }
                                 }
+                                free(albumdir_loc);
                             }
                         }
                     }
-                    else if (opts.output_dsdiff_em)
+                    else if (opts.output_dsdiff_em || opts.export_cue_sheet)
                     {
-                        get_unique_filename(&albumdir, "dff");
-                        file_path = make_filename(opts.output_dir, 0, albumdir, "dff");
+                        char *albumdir_loc;
+                        albumdir_loc = (char *)malloc(strlen(albumdir)+16);
 
-                        scarletbook_output_enqueue_track(output, area_idx, 0, file_path, "dsdiff_edit_master", 
-                            (opts.convert_dst ? 1 : handle->area[area_idx].area_toc->frame_format != FRAME_FORMAT_DST), 0, 0);
+                        for(j = 0; j < n_areas; j ++){
+                            albumdir_loc = strdup(albumdir);
+                            if(n_areas > 1){
+                                strcat(albumdir_loc, j ? " [multi]" : " [stereo]");
+                            }
+
+                            if(opts.export_cue_sheet){
+                                wchar_t *wide_filename;
+                                file_path = get_unique_path(opts.output_dir, albumdir_loc, "cue");
+                                CHAR2WCHAR(wide_filename, file_path);
+                                safe_fwprintf(stdout, L"Exporting CUE sheet [%ls]\n", wide_filename);
+                                write_cue_sheet(handle, file_path, area_idx[j], file_path);
+                                free(file_path);
+                                free(wide_filename);
+                            }
+
+                            if(opts.output_dsdiff_em){
+                                file_path = get_unique_path(opts.output_dir, albumdir_loc, "dff");
+                                scarletbook_output_enqueue_track(output, area_idx[j], 0, file_path, "dsdiff_edit_master", 
+                                    (opts.convert_dst ? 1 : handle->area[area_idx[j]].area_toc->frame_format != FRAME_FORMAT_DST), 0, 0);
+                                free(file_path);
+                            }
+                        }
+                        free(albumdir_loc);
                     }
+
                     // Non-concurrent dsf/dsdiff generation
                     else if (!(opts.output_iso && opts.concurrent) && (opts.output_dsf || opts.output_dsdiff))
                     {
-                        // create the output folder
-                        get_unique_dir(opts.output_dir, &albumdir);
-                        MKDIR(albumdir, 0774);
+                        char *albumdir_loc;
+                        albumdir_loc = (char *)malloc(strlen(albumdir)+16);
 
-                        // fill the queue with items to rip
-                        for (i = 0; i < handle->area[area_idx].area_toc->track_count; i++) 
-                        {
-                            if (opts.select_tracks && opts.selected_tracks[i] == 0)
-                                continue;
-
-                            musicfilename = get_music_filename(handle, area_idx, i, opts.output_file);
-
-                            if (opts.output_dsf)
-                            {
-                                file_path = make_filename(albumdir, 0, musicfilename, "dsf");
-                                scarletbook_output_enqueue_track(output, area_idx, i, file_path, "dsf", 
-                                    1 /* always decode to DSD */, opts.dsf_nopad && !opts.select_tracks, 0);
-                            }
-                            else if (opts.output_dsdiff)
-                            {
-                                file_path = make_filename(albumdir, 0, musicfilename, "dff");
-                                scarletbook_output_enqueue_track(output, area_idx, i, file_path, "dsdiff", 
-                                    (opts.convert_dst ? 1 : handle->area[area_idx].area_toc->frame_format != FRAME_FORMAT_DST), 0, 0);
+                        for(j = 0; j < n_areas; j ++){
+                            // create the output folder
+                            // If both stereo and multi-ch tracks are getting processed, create separate directories
+                            albumdir_loc = strdup(albumdir);
+                            if(n_areas > 1){
+                                strcat(albumdir_loc, j ? " [multi]" : " [stereo]");
                             }
 
-                            free(musicfilename);
-                            free(file_path);
-                            file_path = 0;
+                            get_unique_dir(opts.output_dir, &albumdir_loc);
+                            MKDIR(albumdir_loc, 0774);
+
+                            if(opts.output_dsf){
+                                CHAR2WCHAR(s_wchar, albumdir_loc);
+                                safe_fwprintf(stdout, L"DSF output: %ls\n", s_wchar);
+                                free(s_wchar);
+                            }
+                            else{
+                                CHAR2WCHAR(s_wchar, albumdir_loc);
+                                safe_fwprintf(stdout, L"DSDIFF output: %ls\n", albumdir_loc);
+                                free(s_wchar);
+                            }
+
+                            // fill the queue with items to rip
+                            for (i = 0; i < handle->area[area_idx[j]].area_toc->track_count; i++) 
+                            {
+                                if (opts.select_tracks && opts.selected_tracks[i] == 0)
+                                    continue;
+
+                                musicfilename = get_music_filename(handle, area_idx[j], i, opts.output_file);
+
+                                if (opts.output_dsf)
+                                {
+                                    file_path = make_filename(albumdir_loc, 0, musicfilename, "dsf");
+                                    scarletbook_output_enqueue_track(output, area_idx[j], i, file_path, "dsf", 
+                                        1 /* always decode to DSD */, opts.dsf_nopad && !opts.select_tracks, 0);
+                                }
+                                else if (opts.output_dsdiff)
+                                {
+                                    file_path = make_filename(albumdir_loc, 0, musicfilename, "dff");
+                                    scarletbook_output_enqueue_track(output, area_idx[j], i, file_path, "dsdiff", 
+                                        (opts.convert_dst ? 1 : handle->area[area_idx[j]].area_toc->frame_format != FRAME_FORMAT_DST), 0, 0);
+                                }
+
+                                free(musicfilename);
+                                free(file_path);
+                            }
                         }
+                        free(albumdir_loc);
                     }
-
-                    if (opts.export_cue_sheet)
-                    {
-                        char *cue_file_path = make_filename(opts.output_dir, 0, albumdir, "cue");
-#ifdef _WIN32
-                        wchar_t *wide_filename = (wchar_t *) charset_convert(cue_file_path, strlen(cue_file_path), "UTF-8", sizeof(wchar_t) == 2 ? "UCS-2-INTERNAL" : "UCS-4-INTERNAL");
-#else
-                        wchar_t *wide_filename = (wchar_t *) charset_convert(cue_file_path, strlen(cue_file_path), "UTF-8", "WCHAR_T");
-#endif
-                        fwprintf(stdout, L"Exporting CUE sheet [%ls]\n", wide_filename);
-                        if (!file_path)
-                            file_path = make_filename(opts.output_dir, 0, albumdir, "dff");
-                        write_cue_sheet(handle, file_path, area_idx, cue_file_path);
-                        free(cue_file_path);
-                        free(wide_filename);
-                    }
-
-                    free(file_path);
+                    safe_fwprintf(stdout, L"\n");
 
                     started_processing = time(0);
                     scarletbook_output_start(output);

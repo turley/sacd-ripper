@@ -63,6 +63,8 @@ void sanitize_filepath(char *f);
 
 void get_unique_filename(char **file, const char *ext);
 
+char * get_unique_path(char *dir, char *file, const char *ext);
+
 void get_unique_dir(char *device, char **dir);
 
 #endif
