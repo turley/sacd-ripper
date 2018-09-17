@@ -57,6 +57,7 @@
 #include <fileutils.h>
 #include <utils.h>
 #include <yarn.h>
+#include <version.h>
 
 #ifdef __MINGW32__
 #define MKDIR(a, b) mkdir(a)
@@ -89,6 +90,7 @@ static struct opts_s
     int            select_tracks;
     char           selected_tracks[256]; /* scarletbook is limited to 256 tracks */
     int            dsf_nopad; 
+    int            version;
 } opts;
 
 scarletbook_handle_t *handle;
@@ -120,6 +122,7 @@ static int parse_options(int argc, char *argv[])
         "  -o, --output-dir[=DIR]          : Output directory (ISO output dir for concurrent processing mode)\n"
         "  -y, --output-dir-conc[=DIR]     : DSF/DSDIFF Output directory for concurrent processing mode\n"
         "  -P, --print                     : display disc and track information\n" 
+        "  -v, --version                   : Display version\n"
         "\n"
         "Help options:\n"
         "  -?, --help                      : Show this help message\n"
@@ -135,9 +138,9 @@ static int parse_options(int argc, char *argv[])
         "        [-c|--convert-dst] [-C|--export-cue] [-i|--input FILE] [-o|--output-dir DIR] [-y|--output-dir-conc DIR] [-P|--print]\n"
         "        [-?|--help] [--usage]\n";
 #ifdef SECTOR_LIMIT
-    static const char options_string[] = "2mepszIcCi:o:y:t:P?";
+    static const char options_string[] = "2mepszIcCvi:o:y:t:P?";
 #else
-    static const char options_string[] = "2mepszIwcCi:o:y:t:P?";
+    static const char options_string[] = "2mepszIwcCvi:o:y:t:P?";
 #endif
     static const struct option options_table[] = {
         {"2ch-tracks", no_argument, NULL, '2' },
@@ -152,6 +155,7 @@ static int parse_options(int argc, char *argv[])
 #endif
         {"convert-dst", no_argument, NULL, 'c'}, 
         {"export-cue", no_argument, NULL, 'C'}, 
+        {"version", no_argument, NULL, 'v'},
         {"input", required_argument, NULL, 'i' },
         {"output-dir", required_argument, NULL, 'o' },
         {"output-dir-conc", required_argument, NULL, 'y' },
@@ -223,7 +227,7 @@ static int parse_options(int argc, char *argv[])
         case 'o': opts.output_dir = strdup(optarg); break;
         case 'y': opts.output_dir_conc = strdup(optarg); break;
         case 'P': opts.print = 1; break;
-
+        case 'v': opts.version = 1; break;
         case '?':
             fprintf(stdout, help_text, program_name);
             free(program_name);
@@ -351,6 +355,12 @@ int main(int argc, char* argv[])
             fprintf(stderr, "ERROR: Output not set to wide.\n");
         }
 
+        if(opts.version){
+            fwprintf(stdout, L"sacd_extract version " SACD_RIPPER_VERSION_STRING "\n");
+            fwprintf(stdout, L"git repository: " SACD_RIPPER_REPO "\n", s_wchar);
+            nogo = 1;
+        }
+
         // default to 2 channel
         if (opts.two_channel == 0 && opts.multi_channel == 0) 
         {
@@ -373,8 +383,11 @@ int main(int argc, char* argv[])
             }
         }
 
-        sacd_reader = sacd_open(opts.input_device);
-        if (sacd_reader && !nogo) 
+        if(!nogo){
+            nogo = !(sacd_reader = sacd_open(opts.input_device)) ;
+        }
+
+        if (!nogo) 
         {
 
             handle = scarletbook_open(sacd_reader, 0);
@@ -398,6 +411,27 @@ int main(int argc, char* argv[])
                     }
 
                     albumdir = (strlen(opts.output_file) > 0 ? strdup(opts.output_file) : get_album_dir(handle));
+
+                    if(opts.export_cue_sheet){
+                        char *albumdir_loc;
+                        albumdir_loc = (char *)malloc(strlen(albumdir)+16);
+
+                        for(j = 0; j < n_areas; j ++){
+                            wchar_t *wide_filename;
+                            albumdir_loc = strdup(albumdir);
+                            if(n_areas > 1){
+                                strcat(albumdir_loc, j ? " [multi]" : " [stereo]");
+                            }
+
+                            file_path = get_unique_path(opts.output_dir, albumdir_loc, "cue");
+                            CHAR2WCHAR(wide_filename, file_path);
+                            safe_fwprintf(stdout, L"Exporting CUE sheet [%ls]\n", wide_filename);
+                            write_cue_sheet(handle, file_path, area_idx[j], file_path);
+                            free(file_path);
+                            free(wide_filename);
+                        }
+                        free(albumdir_loc);
+                    }
 
                     if (opts.output_iso)
                     {
@@ -490,7 +524,7 @@ int main(int argc, char* argv[])
                             }
                         }
                     }
-                    else if (opts.output_dsdiff_em || opts.export_cue_sheet)
+                    else if (opts.output_dsdiff_em)
                     {
                         char *albumdir_loc;
                         albumdir_loc = (char *)malloc(strlen(albumdir)+16);
@@ -501,22 +535,10 @@ int main(int argc, char* argv[])
                                 strcat(albumdir_loc, j ? " [multi]" : " [stereo]");
                             }
 
-                            if(opts.export_cue_sheet){
-                                wchar_t *wide_filename;
-                                file_path = get_unique_path(opts.output_dir, albumdir_loc, "cue");
-                                CHAR2WCHAR(wide_filename, file_path);
-                                safe_fwprintf(stdout, L"Exporting CUE sheet [%ls]\n", wide_filename);
-                                write_cue_sheet(handle, file_path, area_idx[j], file_path);
-                                free(file_path);
-                                free(wide_filename);
-                            }
-
-                            if(opts.output_dsdiff_em){
-                                file_path = get_unique_path(opts.output_dir, albumdir_loc, "dff");
-                                scarletbook_output_enqueue_track(output, area_idx[j], 0, file_path, "dsdiff_edit_master", 
-                                    (opts.convert_dst ? 1 : handle->area[area_idx[j]].area_toc->frame_format != FRAME_FORMAT_DST), 0, 0);
-                                free(file_path);
-                            }
+                            file_path = get_unique_path(opts.output_dir, albumdir_loc, "dff");
+                            scarletbook_output_enqueue_track(output, area_idx[j], 0, file_path, "dsdiff_edit_master",
+                                (opts.convert_dst ? 1 : handle->area[area_idx[j]].area_toc->frame_format != FRAME_FORMAT_DST), 0, 0);
+                            free(file_path);
                         }
                         free(albumdir_loc);
                     }
@@ -545,7 +567,7 @@ int main(int argc, char* argv[])
                             }
                             else{
                                 CHAR2WCHAR(s_wchar, albumdir_loc);
-                                safe_fwprintf(stdout, L"DSDIFF output: %ls\n", albumdir_loc);
+                                safe_fwprintf(stdout, L"DSDIFF output: %ls\n", s_wchar);
                                 free(s_wchar);
                             }
 
@@ -588,9 +610,8 @@ int main(int argc, char* argv[])
 
                 free(albumdir);
             }
+            sacd_close(sacd_reader);
         }
-
-        sacd_close(sacd_reader);
 
 #ifndef _WIN32
         freopen(0, "w", stdout);
