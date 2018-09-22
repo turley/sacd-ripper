@@ -464,7 +464,6 @@ int main(int argc, char* argv[])
                             scarletbook_output_enqueue_raw_sectors(output, 0, total_sectors, file_path, "iso");
 
                             free(albumdir_loc);
-                            free(file_path);
                             albumdir_loc = strdup(albumdir);
 
                             // Concurrent iso+dsf/dsdiff generation
@@ -473,6 +472,7 @@ int main(int argc, char* argv[])
                                 CHAR2WCHAR(s_wchar, file_path);
                                 safe_fwprintf(stdout, L"ISO output: %ls\n", s_wchar);
                                 free(s_wchar);
+                                free(file_path);
 
                                 albumdir_loc = (char *)malloc(strlen(albumdir)+16);
                                 // fill the sub queue with items to rip
@@ -521,6 +521,9 @@ int main(int argc, char* argv[])
                                     }
                                 }
                                 free(albumdir_loc);
+                            }
+                            else{
+                                free(file_path);
                             }
                         }
                     }
