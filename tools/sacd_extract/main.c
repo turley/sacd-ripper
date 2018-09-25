@@ -435,8 +435,6 @@ int main(int argc, char* argv[])
 
                     if (opts.output_iso)
                     {
-                        char *albumdir_loc;
-                        albumdir_loc = strdup(albumdir);
 
                         uint32_t total_sectors = sacd_get_total_sectors(sacd_reader);
 #ifdef SECTOR_LIMIT
@@ -446,7 +444,7 @@ int main(int argc, char* argv[])
                         if (total_sectors > FAT32_SECTOR_LIMIT)
                         {
                             musicfilename = (char *) malloc(512);
-                            file_path = make_filename(opts.output_dir, 0, albumdir_loc, "iso");
+                            file_path = make_filename(opts.output_dir, 0, albumdir, "iso");
                             for (i = 1; total_sectors != 0; i++)
                             {
                                 sector_size = min(total_sectors, FAT32_SECTOR_LIMIT);
@@ -460,11 +458,9 @@ int main(int argc, char* argv[])
                         else
 #endif
                         {
-                            file_path = get_unique_path(opts.output_dir, albumdir_loc, "iso");
+                            file_path = get_unique_path(opts.output_dir, albumdir, "iso");
                             scarletbook_output_enqueue_raw_sectors(output, 0, total_sectors, file_path, "iso");
 
-                            free(albumdir_loc);
-                            albumdir_loc = strdup(albumdir);
 
                             // Concurrent iso+dsf/dsdiff generation
                             if(opts.concurrent && (opts.output_dsf || opts.output_dsdiff)){
@@ -474,6 +470,7 @@ int main(int argc, char* argv[])
                                 free(s_wchar);
                                 free(file_path);
 
+                                char *albumdir_loc;
                                 albumdir_loc = (char *)malloc(strlen(albumdir)+16);
                                 // fill the sub queue with items to rip
                                 for (j = 0; j < n_areas; j ++){
