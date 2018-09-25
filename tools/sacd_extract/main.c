@@ -418,7 +418,7 @@ int main(int argc, char* argv[])
 
                         for(j = 0; j < n_areas; j ++){
                             wchar_t *wide_filename;
-                            albumdir_loc = strdup(albumdir);
+                            strcpy(albumdir_loc, albumdir);
                             if(n_areas > 1){
                                 strcat(albumdir_loc, j ? " [multi]" : " [stereo]");
                             }
@@ -533,7 +533,7 @@ int main(int argc, char* argv[])
                         albumdir_loc = (char *)malloc(strlen(albumdir)+16);
 
                         for(j = 0; j < n_areas; j ++){
-                            albumdir_loc = strdup(albumdir);
+                            strcpy(albumdir_loc, albumdir);
                             if(n_areas > 1){
                                 strcat(albumdir_loc, j ? " [multi]" : " [stereo]");
                             }
@@ -555,7 +555,7 @@ int main(int argc, char* argv[])
                         for(j = 0; j < n_areas; j ++){
                             // create the output folder
                             // If both stereo and multi-ch tracks are getting processed, create separate directories
-                            albumdir_loc = strdup(albumdir);
+                            strcpy(albumdir_loc, albumdir);
                             if(n_areas > 1){
                                 strcat(albumdir_loc, j ? " [multi]" : " [stereo]");
                             }
