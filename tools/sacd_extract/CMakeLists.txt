@@ -63,13 +63,19 @@ include_directories("../../libs/libid3")
 include_directories("../../libs/libsacd")
  
 STRING(TOUPPER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE_UPPER)
-# Extra flags for GCC
-if (CMAKE_COMPILER_IS_GNUCC OR (CMAKE_C_COMPILER_ID MATCHES "Clang") AND 
-  NOT (CMAKE_BUILD_TYPE_UPPER STREQUAL "DEBUG"))
-  add_definitions(
-      -pipe
-      -Wall -Wextra -Wcast-align -Wpointer-arith -O3
-      -Wno-unused-parameter -msse2)
+if(NOT (CMAKE_BUILD_TYPE_UPPER STREQUAL "DEBUG"))
+  # Extra flags for arm, currently only tested on RPI
+  if(${CMAKE_HOST_SYSTEM_PROCESSOR} MATCHES "arm*")
+    add_definitions(
+        -O3 -mfpu=neon -mcpu=native -mtune=native -mfloat-abi=hard)
+  # Extra flags for GCC for at least linux and macosx
+  elseif (CMAKE_COMPILER_IS_GNUCC OR (CMAKE_C_COMPILER_ID MATCHES "Clang") AND
+    NOT (CMAKE_BUILD_TYPE_UPPER STREQUAL "DEBUG"))
+    add_definitions(
+        -pipe
+        -Wall -Wextra -Wcast-align -Wpointer-arith -O3
+        -Wno-unused-parameter -msse2)
+  endif ()
 endif ()
 
 if(WIN32)
