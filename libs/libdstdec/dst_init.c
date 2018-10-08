@@ -80,17 +80,27 @@ Changes:
 static void *MemoryAllocate(int NrOfElements, int SizeOfElement) 
 {
   void *Array;
-
+#if defined(__arm__) || defined(__aarch64__)
+  if ((Array = malloc(NrOfElements * SizeOfElement)) == NULL)
+  {
+    fprintf(stderr,"ERROR: not enough memory available!\n\n");
+  }
+#else
   if ((Array = _mm_malloc(NrOfElements * SizeOfElement, 16)) == NULL) 
   {
     fprintf(stderr,"ERROR: not enough memory available!\n\n");
   }
+#endif
   return Array;
 }
 
 static void MemoryFree(void *Array) 
 {
+#if defined(__arm__) || defined(__aarch64__)
+  free(Array);
+#else
   _mm_free(Array);
+#endif
 }
 
 /* General function for allocating memory for array of any type */
