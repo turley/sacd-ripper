@@ -276,15 +276,19 @@ static void handle_sigint(int sig_no)
     scarletbook_output_interrupt(output);
 }
 
-static void handle_status_update_track_callback(char *filename, int current_track, int total_tracks)
+static void handle_status_update_track_callback(char *filename, int current_track, int total_tracks, int dst_decomp)
 {
+    wchar_t *str_decomp;
 #ifdef _WIN32
     wchar_t *wide_filename = (wchar_t *) charset_convert(filename, strlen(filename), "UTF-8", sizeof(wchar_t) == 2 ? "UCS-2-INTERNAL" : "UCS-4-INTERNAL");
 #else
     wchar_t *wide_filename = (wchar_t *) charset_convert(filename, strlen(filename), "UTF-8", "WCHAR_T");
 #endif
-    safe_fwprintf(stdout, L"\rProcessing [%ls] (%d/%d)..\n", wide_filename, current_track, total_tracks);
+
+    CHAR2WCHAR(str_decomp, dst_decomp ? "(d) " : "");
+    safe_fwprintf(stdout, L"\rProcessing %ls[%ls] (%d/%d)..\n", str_decomp, wide_filename, current_track, total_tracks);
     free(wide_filename);
+    free(str_decomp);
 }
 
 static time_t started_processing;

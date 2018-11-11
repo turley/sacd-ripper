@@ -95,7 +95,7 @@ struct scarletbook_output_format_t
 typedef void (*stats_progress_callback_t)(uint32_t stats_total_sectors, uint32_t stats_total_sectors_processed,
                                           uint32_t stats_current_file_total_sectors, uint32_t stats_current_file_sectors_processed);
 
-typedef void (*stats_track_callback_t)(char *filename, int current_track, int total_tracks);
+typedef void (*stats_track_callback_t)(char *filename, int current_track, int total_tracks, int dst_decomp);
 
 scarletbook_output_t *scarletbook_output_create(scarletbook_handle_t *, stats_track_callback_t, stats_progress_callback_t, fwprintf_callback_t);
 int scarletbook_output_destroy(scarletbook_output_t *);

@@ -404,7 +404,7 @@ static void *processing_thread(void *arg)
 
         if (output->stats_track_callback)
         {
-            output->stats_track_callback(ft->filename, output->stats_current_track, output->stats_total_tracks);
+            output->stats_track_callback(ft->filename, output->stats_current_track, output->stats_total_tracks, ft->dsd_encoded_export && ft->dst_encoded_import);
         }
 
         scarletbook_frame_init(handle);
@@ -447,7 +447,7 @@ static void *processing_thread(void *arg)
                     ft_sub = NULL;
                 }
                 else if(ft->current_lsn == ft_sub->start_lsn){
-                    output->stats_track_callback(ft_sub->filename, ft_sub->track + 1, handle->area[ft_sub->area].area_toc->track_count);
+                    output->stats_track_callback(ft_sub->filename, ft_sub->track + 1, handle->area[ft_sub->area].area_toc->track_count, ft->dsd_encoded_export && ft->dst_encoded_import);
                     // First track starting immediately
                     list_del(node_ptr_sub);
                     end_lsn = ft_sub->start_lsn + ft_sub->length_lsn - 1;
@@ -613,7 +613,7 @@ static void *processing_thread(void *arg)
                         }
                         else if (ft->current_lsn >= ft_sub->start_lsn){
                             // Next sub queue item starting
-                            output->stats_track_callback(ft_sub->filename, ft_sub->track + 1, handle->area[ft_sub->area].area_toc->track_count);
+                            output->stats_track_callback(ft_sub->filename, ft_sub->track + 1, handle->area[ft_sub->area].area_toc->track_count, ft->dsd_encoded_export && ft->dst_encoded_import);
                             if(create_output_file(ft_sub))
                                 break;
                             list_del(node_ptr_sub);
