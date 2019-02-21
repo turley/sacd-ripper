@@ -26,10 +26,15 @@
 
 #include "scarletbook_helpers.h"
 
+#define MAX_DISC_ARTIST_LEN 60
+#define MAX_ALBUM_TITLE_LEN 60
+#define MAX_TRACK_TITLE_LEN 60
+#define MAX_TRACK_ARTIST_LEN 60
+
 char *get_album_dir(scarletbook_handle_t *handle)
 {
-    char disc_artist[60];
-    char disc_album_title[60];
+    char disc_artist[MAX_DISC_ARTIST_LEN + 1];
+    char disc_album_title[MAX_ALBUM_TITLE_LEN + 1];
     char disc_album_year[5];
     char *albumdir;
     master_text_t *master_text = &handle->master_text;
@@ -60,7 +65,7 @@ char *get_album_dir(scarletbook_handle_t *handle)
         char *pos = strchr(artist, ';');
         if (!pos)
             pos = artist + strlen(artist);
-        strncpy(disc_artist, artist, min(pos - artist, 59));
+        utf8cpy(disc_artist, artist, min(pos-artist, MAX_DISC_ARTIST_LEN));
     }
 
     memset(disc_album_title, 0, sizeof(disc_album_title));
@@ -69,7 +74,7 @@ char *get_album_dir(scarletbook_handle_t *handle)
         char *pos = strchr(album_title, ';');
         if (!pos)
             pos = album_title + strlen(album_title);
-        strncpy(disc_album_title, album_title, min(pos - album_title, 59));
+        utf8cpy(disc_album_title, album_title, min(pos - album_title, MAX_ALBUM_TITLE_LEN));
     }
 
     snprintf(disc_album_year, sizeof(disc_album_year), "%04d", handle->master_toc->disc_date_year);
@@ -94,9 +99,9 @@ char *get_album_dir(scarletbook_handle_t *handle)
 char *get_music_filename(scarletbook_handle_t *handle, int area, int track, const char *override_title)
 {
     char *c;
-    char track_artist[60];
-    char track_title[60];
-    char disc_album_title[60];
+    char track_artist[MAX_TRACK_ARTIST_LEN + 1];
+    char track_title[MAX_TRACK_TITLE_LEN + 1];
+    char disc_album_title[MAX_ALBUM_TITLE_LEN + 1];
     char disc_album_year[5];
     master_text_t *master_text = &handle->master_text;
     char *album_title = 0; 
@@ -114,14 +119,14 @@ char *get_music_filename(scarletbook_handle_t *handle, int area, int track, cons
     c = handle->area[area].area_track_text[track].track_type_performer;
     if (c)
     {
-        strncpy(track_artist, c, 59);
+        utf8cpy(track_artist, c, MAX_TRACK_ARTIST_LEN);
     }
 
     memset(track_title, 0, sizeof(track_title));
     c = handle->area[area].area_track_text[track].track_type_title;
     if (c)
     {
-        strncpy(track_title, c, 59);
+        utf8cpy(track_title, c, MAX_TRACK_TITLE_LEN);
     }
 
     memset(disc_album_title, 0, sizeof(disc_album_title));
@@ -130,7 +135,7 @@ char *get_music_filename(scarletbook_handle_t *handle, int area, int track, cons
         char *pos = strchr(album_title, ';');
         if (!pos)
             pos = album_title + strlen(album_title);
-        strncpy(disc_album_title, album_title, min(pos - album_title, 59));
+        utf8cpy(disc_album_title, album_title, min(pos - album_title, MAX_ALBUM_TITLE_LEN));
     }
 
     snprintf(disc_album_year, sizeof(disc_album_year), "%04d", handle->master_toc->disc_date_year);
@@ -192,4 +197,48 @@ char *get_frame_format_string(area_toc_t *area)
     {
         return "Unknown";
     }
+}
+
+int utf8cpy(char *dst, char *src, int n){
+    // n is the size of dst (including the last byte for null
+    int i = 0;
+
+    while(i < n){
+        int c;
+        if(!(src[i] & 0x80)){
+            // ASCII code
+            if(src[i] == '\0'){
+                break;
+            }
+            c = 1;
+        }
+        else if((src[i] & 0xe0) == 0xc0){
+            // 2-byte code
+            c = 2;
+        }
+        else if((src[i] & 0xf0) == 0xe0){
+            // 3-byte code
+            c = 3;
+        }
+        else if((src[i] & 0xf8) == 0xf0){
+            // 4-byte code
+            c = 4;
+        }
+        else if(src[i] == '\0'){
+            break;
+        }
+        else{
+            break;
+        }
+        if(i + c <= n){
+            memcpy(dst + i, src + i, c * sizeof(char));
+            i += c;
+        }
+        else{
+            break;
+        }
+    }
+
+    dst[i] = '\0';
+    return i;
 }
