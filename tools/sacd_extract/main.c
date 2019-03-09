@@ -59,12 +59,6 @@
 #include <yarn.h>
 #include <version.h>
 
-#ifdef __MINGW32__
-#define MKDIR(a, b) mkdir(a)
-#else
-#define MKDIR(a, b) mkdir(a, b)
-#endif
-
 #ifdef _WIN32
 #define CHAR2WCHAR(dst, src) dst = (wchar_t *) charset_convert(src, strlen(src), "UTF-8", sizeof(wchar_t) == 2 ? "UCS-2-INTERNAL" : "UCS-4-INTERNAL")
 #else
@@ -95,6 +89,17 @@ static struct opts_s
 
 scarletbook_handle_t *handle;
 scarletbook_output_t *output;
+
+void mkdir_wrap(char *name, char *mode){
+#ifdef __MINGW32__
+    wchar_t *wname;
+    wname = (wchar_t *) charset_convert(name, strlen(name), "UTF-8", "UCS-2-INTERNAL");
+    _wmkdir(wname);
+    free(wname);
+#else
+    mkdir(name, mode);
+#endif
+}
 
 /* Parse all options. */
 static int parse_options(int argc, char *argv[]) 
@@ -486,7 +491,7 @@ int main(int argc, char* argv[])
                                     }
 
                                     get_unique_dir(opts.output_dir_conc, &albumdir_loc);
-                                    MKDIR(albumdir_loc, 0774);
+                                    mkdir_wrap(albumdir_loc, 0774);
                                     if(opts.output_dsf){
                                         CHAR2WCHAR(s_wchar, albumdir_loc);
                                         safe_fwprintf(stdout, L"DSF output: %ls\n", s_wchar);
@@ -562,7 +567,7 @@ int main(int argc, char* argv[])
                             }
 
                             get_unique_dir(opts.output_dir, &albumdir_loc);
-                            MKDIR(albumdir_loc, 0774);
+                            mkdir_wrap(albumdir_loc, 0774);
 
                             if(opts.output_dsf){
                                 CHAR2WCHAR(s_wchar, albumdir_loc);
