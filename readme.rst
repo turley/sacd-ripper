@@ -106,3 +106,13 @@ Windows binary compilation on Linux using Mingw-w64 preceded by iconv compilatio
     $ cmake -DMINGW64=YES
     $ make
 
+macOS::
+
+    $ xcode-select --install
+    $ /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+    $ brew install cmake
+    $ git clone https://github.com/setmind/sacd-ripper.git
+    $ cd sacd-ripper/tools/sacd_extract
+    $ cmake .
+    $ make
+
