@@ -35,6 +35,22 @@
 #include "charset.h"
 #include "utils.h"
 
+int stat_wrap(const char *pathname, struct stat *buf){
+    int ret;
+#ifdef __MINGW32__
+    // Note buf is not in _stat type so buf is untouched.
+    wchar_t *w_pathname;
+    struct _stat buffer;
+
+    w_pathname = (wchar_t *)charset_convert(pathname, strlen(pathname), "UTF-8", "UCS-2-INTERNAL");
+    ret = _wstat(w_pathname, &buffer);
+    free(w_pathname);
+#else
+    ret = stat(pathname, buf);
+#endif
+    return ret;
+}
+
 // construct a filename from various parts
 //
 // path - the path the file is placed in (don't include a trailing '/')
@@ -344,7 +360,7 @@ char *get_unique_path(char *dir, char *file, const char *ext)
             snprintf(file_new, strlen(file)+8, "%s (%d)", file, i);
         }
         path = make_filename(dir, 0, file_new, ext);
-        if(stat(path, &stat_file) != 0){
+        if(stat_wrap(path, &stat_file) != 0){
             free(path);
             path = make_filename(dir, 0, file_new, ext);
             break;
@@ -365,7 +381,7 @@ void get_unique_filename(char **file, const char *ext)
     int file_exists, count = 1;
     char *file_org = strdup(*file);
     char *ext_file = make_filename(0, 0, *file, ext);
-    file_exists = (stat(ext_file, &stat_file) == 0);
+    file_exists = (stat_wrap(ext_file, &stat_file) == 0);
     free(ext_file);
     while (file_exists)
     {
@@ -375,7 +391,7 @@ void get_unique_filename(char **file, const char *ext)
         free(*file);
         *file = file_copy;
         ext_file = make_filename(0, 0, file_copy, ext);
-        file_exists = (stat(file_copy, &stat_file) == 0);
+        file_exists = (stat_wrap(file_copy, &stat_file) == 0);
         free(ext_file);
     }
     free(file_org);
@@ -387,7 +403,7 @@ void get_unique_dir(char *device, char **dir)
     int dir_exists, count = 1;
     char *dir_org = strdup(*dir);
     char *device_dir = make_filename(device, *dir, 0, 0);
-    dir_exists = (stat(device ? device_dir : *dir, &stat_dir) == 0);
+    dir_exists = (stat_wrap(device ? device_dir : *dir, &stat_dir) == 0);
     while (dir_exists)
     {
         free(device_dir);
@@ -397,7 +413,7 @@ void get_unique_dir(char *device, char **dir)
         free(*dir);
         *dir = dir_copy;
         device_dir = make_filename(device, dir_copy, 0, 0);
-        dir_exists = (stat(device ? device_dir : dir_copy, &stat_dir) == 0);
+        dir_exists = (stat_wrap(device ? device_dir : dir_copy, &stat_dir) == 0);
     }
     if(device){
         free(*dir);
