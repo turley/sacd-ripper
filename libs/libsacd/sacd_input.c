@@ -331,6 +331,10 @@ static sacd_input_t sacd_net_input_open(const char *target)
     pb_istream_t input;
     pb_ostream_t output;
     uint8_t zero = 0;
+    char host[256];
+
+    strncpy(host, target, strchr(target, ':') - target);
+    host[strchr(target, ':') - target] = '\0';
 
     /* Allocate the library structure */
     dev = (sacd_input_t) calloc(sizeof(*dev), 1);
@@ -354,7 +358,7 @@ static sacd_input_t sacd_net_input_open(const char *target)
 
     timeout_markstart(&tm); 
     err = inet_tryconnect(&dev->fd, 
-            substr(target, 0, strchr(target, ':') - target), 
+            host,
             atoi(strchr(target, ':') + 1), &tm);
     if (err)
     {

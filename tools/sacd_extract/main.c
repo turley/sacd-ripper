@@ -90,7 +90,7 @@ static struct opts_s
 scarletbook_handle_t *handle;
 scarletbook_output_t *output;
 
-void mkdir_wrap(char *name, char *mode){
+void mkdir_wrap(char *name, int mode){
 #ifdef __MINGW32__
     wchar_t *wname;
     wname = (wchar_t *) charset_convert(name, strlen(name), "UTF-8", "UCS-2-INTERNAL");
